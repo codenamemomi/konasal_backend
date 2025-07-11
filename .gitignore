@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.env
+*.venv
+.env
+.env.*
+
+# Byte-compiled / cache
+*.pyc
+*.pyo
+*.pyd
+*.db
+
+venv/
+env/
+.venv/
+ENV/
+
+*.log
+
+# IDEs
+.vscode/
+.idea/
+
+# Testing
+.coverage
+htmlcov/
+.tox/
+.pytest_cache/
+
+alembic/versions/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.pid
+docker-compose.override.yml
+
+*.json
