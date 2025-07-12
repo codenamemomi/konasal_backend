@@ -15,6 +15,7 @@ from jose import JWTError, jwt
 from core.config.settings import settings
 from api.utils.token import oauth2_scheme
 from api.v1.schemas.auth import UserCreate
+from api.utils.email_utils import is_email_reachable
 
 
 r = redis.Redis(
@@ -69,7 +70,14 @@ async def create_user(db: AsyncSession, schemas: UserCreate) -> User:
     existing_user = result.scalar_one_or_none()
 
     if existing_user:
-        raise ValueError("Email already registered")
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    # Email DNS check
+    if not await is_email_reachable(schemas.email):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or unreachable email address"
+        )
 
     new_user = User(
         email=schemas.email,
@@ -84,6 +92,7 @@ async def create_user(db: AsyncSession, schemas: UserCreate) -> User:
     await db.commit()
     await db.refresh(new_user)
     return new_user
+
 
 async def verify_user_email(user: User, db: AsyncSession):
     if not user:
