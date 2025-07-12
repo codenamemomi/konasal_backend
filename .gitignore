@@ -41,4 +41,3 @@ Thumbs.db
 *.pid
 docker-compose.override.yml
 
-*.json
