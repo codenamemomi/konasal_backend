@@ -22,7 +22,8 @@ r = redis.Redis(
     port=settings.REDIS_PORT,
     password=settings.REDIS_PASSWORD,
     db=settings.REDIS_DB,
-    decode_responses=settings.REDIS_RESPONSE
+    decode_responses=settings.REDIS_RESPONSE,
+    ssl=True
 )
 
 
