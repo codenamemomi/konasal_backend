@@ -2,7 +2,7 @@ from uuid import UUID
 from enum import Enum
 from datetime import date
 from pydantic import BaseModel, EmailStr, Field, model_validator, field_validator
-from typing import Optional
+from typing import Optional, Literal
 
 
 class GenderEnum(str, Enum):
@@ -54,6 +54,21 @@ class UserUpdate(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+class UserInfo(BaseModel):
+    id: str
+    first_name: str
+    last_name: str
+    email: EmailStr
+    date_of_birth: Optional[date]
+    gender: Optional[GenderEnum]
+    is_verified: bool
+    
+class LoginResponse(BaseModel):
+    message: str
+    access_token: str
+    token_type: Literal["bearer"]
+    user: UserInfo
 
 class Token(BaseModel):
     access_token: str

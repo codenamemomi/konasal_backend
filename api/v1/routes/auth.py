@@ -6,11 +6,12 @@ from sqlalchemy import select
 from pydantic import EmailStr
 import random
 from fastapi import BackgroundTasks
+from pydantic import BaseModel
 
 
 from core.config.settings import settings
 from api.utils import email_utils
-from api.v1.schemas.auth import UserCreate, UserResponse, LoginRequest, Token, PasswordResetRequest, PasswordResetVerify, ResendVerificationRequest, TokenVerifyRequest
+from api.v1.schemas.auth import UserCreate, UserResponse, LoginRequest, Token, PasswordResetRequest, PasswordResetVerify, ResendVerificationRequest, TokenVerifyRequest, LoginResponse, UserInfo
 from api.v1.services import auth as user_service
 from api.db.session import get_db
 from api.utils.auth import create_access_token, validate_password, validate_email_format, verify_password 
@@ -20,8 +21,11 @@ from api.utils.token import serializer
 
 auth = APIRouter(prefix="/auth", tags=["Auth"])
 
+class MessageResponse(BaseModel):
+    message: str
 
-@auth.post("/signup", response_model=UserResponse)
+
+@auth.post("/signup", response_model=MessageResponse)
 async def signup(user_data: UserCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     validate_password(user_data.password)
     validate_email_format(user_data.email)
@@ -64,10 +68,10 @@ async def signup(user_data: UserCreate, background_tasks: BackgroundTasks, db: S
         content=html_content
     )
 
-    return JSONResponse(status_code=200, content={"message": "Verification code sent to your email"})
+    return {"message": "Verification code sent to your email"}
 
 
-@auth.post("/verify-email")
+@auth.post("/verify-email", response_model=MessageResponse)
 async def verify_email(data: TokenVerifyRequest, db: Session = Depends(get_db)):
     email = await user_service.verify_token(data.token)
     if not email:
@@ -78,15 +82,14 @@ async def verify_email(data: TokenVerifyRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
 
     if user.is_verified:
-        return {"msg": "Email already verified"}
+        return {"message": "Email already verified"}
 
     await user_service.verify_user_email(user, db)
     await user_service.delete_token(data.token)
 
-    return {"msg": "Email verified successfully"}
+    return {"message": "Email verified successfully"}
 
-
-@auth.post("/resend-verification")
+@auth.post("/resend-verification", response_model=MessageResponse)
 async def resend_verification_email(
     payload: ResendVerificationRequest,
     background_tasks: BackgroundTasks,
@@ -98,7 +101,7 @@ async def resend_verification_email(
         raise HTTPException(status_code=404, detail="User not found")
 
     if user.is_verified:
-        return JSONResponse(status_code=200, content={"message": "Email already verified"})
+        return {"message": "Email already verified"}
 
     token = str(random.randint(10000, 99999))
     await user_service.store_token(user.email, token)
@@ -121,19 +124,15 @@ async def resend_verification_email(
         content=html_content
     )
 
-    return JSONResponse(status_code=200, content={"message": "Verification email resent"})
+    return {"message": "Verification email resent"}
 
-
-@auth.post("/login")
+@auth.post("/login", response_model=LoginResponse)
 async def login(response: Response, user_data: LoginRequest, db: Session = Depends(get_db)):
     stmt = select(User).where(User.email == user_data.email)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    if not verify_password(user_data.password, user.password_hash):
+    if not user or not verify_password(user_data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     if not user.is_verified:
@@ -141,24 +140,6 @@ async def login(response: Response, user_data: LoginRequest, db: Session = Depen
 
     access_token = create_access_token(data={"sub": str(user.id)})
 
-    
-
-    response = JSONResponse(
-        status_code=200,
-        content={
-            "message": "Login successful",
-            "access_token": access_token,
-            "token_type": "bearer",
-            "user": {
-                "id": str(user.id),
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-                "email": user.email,
-                "gender": user.gender,
-                "is_verified": user.is_verified
-            }
-        }
-    )
     response.set_cookie(
         key="access_token",
         value=access_token,
@@ -166,24 +147,40 @@ async def login(response: Response, user_data: LoginRequest, db: Session = Depen
         secure=False,
         samesite="lax",
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-    )    
-    return response
+    )
 
+    return {
+        "message": "Login successful",
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": str(user.id),
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "email": user.email,
+            "date_of_birth": user.date_of_birth,
+            "gender": user.gender,
+            "is_verified": user.is_verified
+        }
+    }
 
-@auth.post("/logout")
+@auth.post("/logout", response_model=MessageResponse)
 async def logout(response: Response, request: Request):
     token = request.cookies.get("access_token")
     if not token:
-        raise HTTPException(status_code=401, detail="please login first")
+        raise HTTPException(status_code=401, detail="Please login first")
     
     await user_service.blacklist_token(token)
     response.delete_cookie("access_token")
-    return {"detail": "Logged out successfully"}
+    return {"message": "Logged out successfully"}
 
-
-@auth.post("/forgot-password")
-async def forgot_password(data: PasswordResetRequest, db: Session = Depends(get_db)):
-    user = user_service.get_user_by_email(data.email, db)
+@auth.post("/forgot-password", response_model=MessageResponse)
+async def forgot_password(
+    data: PasswordResetRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    user = await user_service.get_user_by_email(data.email, db)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -203,19 +200,17 @@ async def forgot_password(data: PasswordResetRequest, db: Session = Depends(get_
     </html>
     """
 
-    try:
-        email_utils.send_email_reminder(
-            to_email=data.email,
-            subject=subject,
-            content=html_content
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
+    # Schedule the email to be sent in background
+    background_tasks.add_task(
+        email_utils.send_email_reminder,
+        to_email=data.email,
+        subject=subject,
+        content=html_content
+    )
 
-    return {"msg": "Password reset token sent to your email"}
+    return {"message": "Password reset token sent to your email"}
 
-
-@auth.post("/reset-password")
+@auth.post("/reset-password", response_model=MessageResponse)
 async def reset_password(data: PasswordResetVerify, db: Session = Depends(get_db)):
     email = await user_service.verify_token(data.token)
     if not email:
@@ -228,8 +223,7 @@ async def reset_password(data: PasswordResetVerify, db: Session = Depends(get_db
     await user_service.update_user_password(user, data.new_password, db)
     await user_service.delete_token(data.token)
 
-    return {"msg": "Password reset successfully"}
-
+    return {"message": "Password reset successfully"}
 
 
 
