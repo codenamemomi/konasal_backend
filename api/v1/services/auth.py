@@ -79,7 +79,8 @@ async def create_user(db: AsyncSession, schemas: UserCreate) -> User:
         password_hash=schemas.password,
         first_name=schemas.first_name,
         last_name=schemas.last_name,
-        role="attendee",
+        gender=schemas.gender,
+        date_of_birth=schemas.date_of_birth,
         is_verified=False
     )
     db.add(new_user)
