@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
-    BACKEND_CORS_ORIGINS: Union[str, List[str]] = []
+    BACKEND_CORS_ORIGINS: List[str] = []
 
     SMTP_SERVER: Optional[str] = None
     SMTP_PORT: Optional[int] = None
@@ -52,9 +52,9 @@ class Settings(BaseSettings):
     )
 
 
-    @field_validator("BACKEND_CORS_ORIGINS")
+    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
-    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[AnyHttpUrl]:
+    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
         if isinstance(v, str):
             return [i.strip() for i in v.split(",")]
         return v
