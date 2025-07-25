@@ -20,6 +20,7 @@ class User(BaseModel):
     email = Column(String, nullable=False, unique=True)
     date_of_birth = Column(Date, nullable=True)
     gender = Column(SQLAlchemyEnum(GenderEnum), nullable=True)
+    phone_number = Column(String, nullable=True)
     password_hash = Column(String, nullable=False)
     is_verified = Column(Boolean, default=False)
 

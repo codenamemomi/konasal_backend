@@ -1,19 +1,16 @@
-from fastapi import Depends, Request
+from fastapi import Depends, Request, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from passlib.context import CryptContext
-from typing import Optional
-import redis.asyncio as redis
-import datetime
-import logging
 from passlib.hash import bcrypt
+from jose import JWTError, jwt
+from typing import Optional
+from datetime import datetime
+import redis.asyncio as redis
+import logging
 
 from api.db.session import get_db
 from api.v1.models.user import User
-from fastapi import HTTPException, status
-from jose import JWTError, jwt
 from core.config.settings import settings
-from api.utils.token import oauth2_scheme
 from api.v1.schemas.auth import UserCreate
 
 
@@ -26,9 +23,10 @@ r = redis.Redis(
     ssl=True
 )
 
-
 logger = logging.getLogger(__name__)
 
+
+# --- Password Utilities ---
 def hash_password(password: str) -> str:
     return bcrypt.hash(password)
 
@@ -36,12 +34,14 @@ def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.verify(password, hashed)
 
 
-async def get_user_by_email(email: str, db: AsyncSession):
+# --- Core User Logic ---
+async def get_user_by_email(email: str, db: AsyncSession) -> Optional[User]:
     stmt = select(User).where(User.email == email)
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
 
-async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)):
+
+async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)) -> User:
     token = request.cookies.get("access_token")
 
     if not token:
@@ -67,19 +67,19 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
 
     return user
 
-async def create_user(db: AsyncSession, schemas: UserCreate) -> User:
-    result = await db.execute(select(User).where(User.email == schemas.email))
-    existing_user = result.scalar_one_or_none()
 
+async def create_user(db: AsyncSession, schemas: UserCreate) -> User:
+    existing_user = await get_user_by_email(schemas.email, db)
     if existing_user:
         raise ValueError("Email already registered")
 
     new_user = User(
         email=schemas.email,
-        password_hash=schemas.password,
+        password_hash=hash_password(schemas.password),
         first_name=schemas.first_name,
         last_name=schemas.last_name,
         gender=schemas.gender,
+        phone_number=schemas.phone_number,
         date_of_birth=schemas.date_of_birth,
         is_verified=False
     )
@@ -88,7 +88,8 @@ async def create_user(db: AsyncSession, schemas: UserCreate) -> User:
     await db.refresh(new_user)
     return new_user
 
-async def verify_user_email(user: User, db: AsyncSession):
+
+async def verify_user_email(user: User, db: AsyncSession) -> User:
     if not user:
         raise ValueError("User not found")
 
@@ -98,6 +99,8 @@ async def verify_user_email(user: User, db: AsyncSession):
     await db.refresh(user)
     return user
 
+
+# --- Token Blacklisting & Password Reset Token ---
 async def blacklist_token(token: str):
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
@@ -109,24 +112,30 @@ async def blacklist_token(token: str):
     except Exception as e:
         logger.error(f"Error blacklisting token: {e}")
 
+
 async def is_token_blacklisted(token: str) -> bool:
     result = await r.get(token)
     return result == "blacklisted"
+
 
 async def store_token(email: str, token: str, expiry: int = 600):
     key = f"reset_token:{token}"
     await r.set(key, email, ex=expiry)
 
-async def verify_token(token: str) -> str | None:
+
+async def verify_token(token: str) -> Optional[str]:
     key = f"reset_token:{token}"
     email = await r.get(key)
-    return email if email else None
+    return email
+
 
 async def delete_token(token: str):
     key = f"reset_token:{token}"
     await r.delete(key)
 
-async def update_user_password(user, new_password: str, db):
+
+# --- Update Password ---
+async def update_user_password(user: User, new_password: str, db: AsyncSession):
     user.password_hash = hash_password(new_password)
     db.add(user)
     await db.commit()

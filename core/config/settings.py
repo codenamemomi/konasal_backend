@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     REDIS_DB: int
     REDIS_PASSWORD: str = ""
     REDIS_RESPONSE: bool = True
+    REDIS_URL: str
 
     CELERY_BROKER_URL: str
     CELERY_RESULT_BACKEND: str
