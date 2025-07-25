@@ -73,8 +73,9 @@ class UserInfo(BaseModel):
 
     @field_serializer("date_of_birth", mode="plain")
     def format_birth_date(cls, dob: Optional[date]) -> Optional[str]:
-        return dob.strftime("%d-%m") if dob else None
-
+        if isinstance(dob, date):
+            return dob.strftime("%d-%m")
+        return None
 class LoginResponse(BaseModel):
     message: str
     access_token: str
