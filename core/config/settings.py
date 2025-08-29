@@ -22,12 +22,12 @@ class Settings(BaseSettings):
 
     BACKEND_CORS_ORIGINS: List[str] = []
 
-    SMTP_SERVER: Optional[str] = None
-    SMTP_PORT: Optional[int] = None
+    EMAIL_HOST: Optional[str] = None
+    EMAIL_PORT: Optional[int] = None
     EMAILS_FROM_EMAIL: Optional[str] = None
 
-    MAIL_USERNAME: Optional[str] = None
-    MAIL_PASSWORD: Optional[str] = None
+    EMAIL_USERNAME: Optional[str] = None
+    EMAIL_PASSWORD: Optional[str] = None
 
     MAIL_FROM: Optional[str] = None
     MAIL_FROM_NAME: Optional[str] = None

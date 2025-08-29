@@ -1,15 +1,18 @@
-from uuid import UUID
-from enum import Enum
-from datetime import date
+from pydantic import BaseModel, EmailStr, Field, model_validator, field_serializer
 from typing import Optional, Literal
+from datetime import date
+from enum import Enum
 
-from pydantic import (
-    BaseModel,
-    EmailStr,
-    Field,
-    model_validator,
-    field_serializer
-)
+class GenderEnum(str, Enum):
+    MALE = "MALE"
+    FEMALE = "FEMALE"
+    OTHER = "OTHER"
+
+# api/v1/schemas/auth.py
+from pydantic import BaseModel, EmailStr, Field, model_validator, field_serializer
+from typing import Optional, Literal
+from datetime import date
+from enum import Enum
 
 class GenderEnum(str, Enum):
     MALE = "MALE"
@@ -28,12 +31,16 @@ class UserCreate(BaseModel):
 
     @model_validator(mode="before")
     def passwords_match(cls, values):
-        if values.get("password") != values.get("password_verify"):
-            raise ValueError("Passwords do not match")
+        password = values.get("password")
+        password_verify = values.get("password_verify")
+        print(f"Validating: password={password!r}, type={type(password)}, password_verify={password_verify!r}, type={type(password_verify)}")
+        if str(password) != str(password_verify):
+            raise ValueError(f"Passwords do not match: {password!r} vs {password_verify!r}")
         return values
-
+    
+    
 class UserResponse(BaseModel):
-    id: UUID
+    id: int  # Changed from UUID to int
     email: EmailStr
     is_verified: bool
     first_name: str
@@ -57,12 +64,8 @@ class UserUpdate(BaseModel):
     date_of_birth: Optional[date] = None
     gender: Optional[GenderEnum] = None
 
-class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str
-
 class UserInfo(BaseModel):
-    id: str
+    id: str  # Keep as str for JSON compatibility
     first_name: str
     last_name: str
     email: EmailStr
@@ -76,6 +79,7 @@ class UserInfo(BaseModel):
         if isinstance(dob, date):
             return dob.strftime("%d-%m")
         return None
+
 class LoginResponse(BaseModel):
     message: str
     access_token: str
@@ -104,7 +108,12 @@ class PasswordResetVerify(BaseModel):
         return values
 
 class TokenVerifyRequest(BaseModel):
+    email: EmailStr
     token: str
 
 class ResendVerificationRequest(BaseModel):
     email: EmailStr
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
