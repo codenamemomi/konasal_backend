@@ -20,16 +20,19 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
-    BACKEND_CORS_ORIGINS: List[str] = []
+    BACKEND_CORS_ORIGINS: List[str] = ["http://127.0.0.1:5500"]  # Updated
 
     EMAIL_HOST: Optional[str] = None
     EMAIL_PORT: Optional[int] = None
-    EMAILS_FROM_EMAIL: Optional[str] = None
-
-    EMAIL_USERNAME: Optional[str] = None
+    EMAIL_USERNAME: Optional[str] = None  # Changed from EMAILS_FROM_EMAIL
     EMAIL_PASSWORD: Optional[str] = None
-
-    MAIL_FROM: Optional[str] = None
+    EMAIL_FROM: Optional[str] = None  # Changed from MAIL_FROM
+    EMAIL_USE_SSL: bool = True  # New setting to specify SSL usage
+    
+    
+    # Remove or keep these for backward compatibility
+    EMAILS_FROM_EMAIL: Optional[str] = None  # Keep for compatibility
+    MAIL_FROM: Optional[str] = None  # Keep for compatibility
     MAIL_FROM_NAME: Optional[str] = None
 
     VERIFICATION_BASE_URL: Optional[str] = None
@@ -52,14 +55,12 @@ class Settings(BaseSettings):
         case_sensitive=True,
     )
 
-
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
         if isinstance(v, str):
             return [i.strip() for i in v.split(",")]
         return v
-
 
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:

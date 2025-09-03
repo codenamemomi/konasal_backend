@@ -7,6 +7,7 @@ from typing import Optional
 from datetime import datetime
 import redis.asyncio as redis
 import logging
+import uuid
 
 from api.db.session import get_db
 from api.v1.models.user import User
@@ -32,28 +33,55 @@ async def get_user_by_email(email: str, db: AsyncSession) -> Optional[User]:
     return result.scalar_one_or_none()
 
 async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)) -> User:
-    token = request.cookies.get("access_token")
+    # First try to get token from Authorization header
+    auth_header = request.headers.get("Authorization")
+    print(f"DEBUG: Authorization header: {auth_header}")  # Debug log
+    
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        print(f"DEBUG: Using Authorization header token: {token[:20]}...")  # Debug log (show first 20 chars)
+    else:
+        # Fall back to cookie
+        token = request.cookies.get("access_token")
+        print(f"DEBUG: Using cookie token: {token}")  # Debug log
+    
     if not token:
+        print("DEBUG: No token found in headers or cookies")  # Debug log
         raise HTTPException(status_code=401, detail="Missing authentication token")
 
     if await is_token_blacklisted(token):
+        print("DEBUG: Token is blacklisted")  # Debug log
         raise HTTPException(status_code=401, detail="Token has been revoked")
 
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        user_id: str = payload.get("sub")
-        if not user_id:
+        user_id_str: str = payload.get("sub")
+        print(f"DEBUG: Decoded user ID from token: {user_id_str}")  # Debug log
+        
+        if not user_id_str:
+            print("DEBUG: No user ID in token payload")  # Debug log
             raise HTTPException(status_code=401, detail="Invalid token")
-    except JWTError:
+    except JWTError as e:
+        print(f"DEBUG: JWT decoding error: {e}")  # Debug log
         raise HTTPException(status_code=401, detail="Could not validate token")
 
-    stmt = select(User).where(User.id == user_id)
+    # Convert string ID back to UUID for database query
+    try:
+        user_id_uuid = uuid.UUID(user_id_str)
+        print(f"DEBUG: Converted to UUID: {user_id_uuid}")  # Debug log
+    except ValueError as e:
+        print(f"DEBUG: UUID conversion error: {e}")  # Debug log
+        raise HTTPException(status_code=401, detail="Invalid user ID format")
+
+    stmt = select(User).where(User.id == user_id_uuid)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
     if user is None:
+        print(f"DEBUG: User not found with ID: {user_id_uuid}")  # Debug log
         raise HTTPException(status_code=404, detail="User not found")
 
+    print(f"DEBUG: User found: {user.email}")  # Debug log
     return user
 
 async def create_user(db: AsyncSession, user_data: UserCreate):

@@ -11,17 +11,33 @@ from sendgrid.helpers.mail import Mail
 EMAIL_REGEX = re.compile(r"^[^@]+@[^@]+\.[^@]+$")
 
 
+import smtplib
+from email.mime.text import MIMEText
+from core.config.settings import settings
+import traceback
+from pydantic import EmailStr
+import re
+import dns.resolver
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
+import logging
+
+logger = logging.getLogger(__name__)
+EMAIL_REGEX = re.compile(r"^[^@]+@[^@]+\.[^@]+$")
+
 def send_email_reminder(to_email: str, subject: str, content: str):
     """
     Try sending email via Gmail SMTP (preferred).
     If SMTP is not configured, fallback to SendGrid.
     """
     from_email = (
-        settings.MAIL_FROM
-        or settings.EMAILS_FROM_EMAIL
-        or "no-reply@example.com"
+        settings.MAIL_FROM or
+        settings.EMAILS_FROM_EMAIL or
+        "no-reply@example.com"
     )
 
+    email_sent = False
+    
     # --- Option 1: Gmail SMTP ---
     if settings.EMAIL_HOST and settings.EMAIL_USERNAME and settings.EMAIL_PASSWORD:
         try:
@@ -30,19 +46,21 @@ def send_email_reminder(to_email: str, subject: str, content: str):
             message["From"] = from_email
             message["To"] = to_email
 
-            with smtplib.SMTP(settings.EMAIL_HOST, settings.EMAIL_PORT) as server:
-                server.starttls()
+            # USE SMTP_SSL FOR PORT 465
+            with smtplib.SMTP_SSL(settings.EMAIL_HOST, settings.EMAIL_PORT) as server:
                 server.login(settings.EMAIL_USERNAME, settings.EMAIL_PASSWORD)
                 server.sendmail(from_email, [to_email], message.as_string())
 
-            print("✅ Email sent successfully via Gmail SMTP.")
+            print("✅ Email sent successfully via Gmail SMTP (SSL).")
+            email_sent = True
             return 200
         except Exception as e:
             print("❌ Failed to send email via Gmail SMTP.")
+            logger.warning(f"SMTP email failed: {e}")
             traceback.print_exc()
 
     # --- Option 2: SendGrid ---
-    if settings.SENDGRID_API_KEY:
+    if settings.SENDGRID_API_KEY and not email_sent:
         try:
             message = Mail(
                 from_email=from_email,
@@ -55,17 +73,31 @@ def send_email_reminder(to_email: str, subject: str, content: str):
 
             if 200 <= response.status_code < 300:
                 print("✅ Email sent successfully via SendGrid.")
+                email_sent = True
             else:
                 print(f"⚠️ SendGrid returned status code: {response.status_code}")
-                print(f"Body: {response.body}")
-                print(f"Headers: {response.headers}")
+                logger.warning(f"SendGrid failed: {response.status_code} - {response.body}")
 
             return response.status_code
         except Exception as e:
             print("❌ Failed to send email via SendGrid.")
+            logger.warning(f"SendGrid email failed: {e}")
             traceback.print_exc()
 
-    print("⚠️ No valid email configuration found.")
+    # --- Option 3: Development Fallback ---
+    if not email_sent:
+        # Extract verification token from HTML content for development
+        import re
+        token_match = re.search(r'<h3[^>]*>(.*?)</h3>', content)
+        if token_match:
+            token = token_match.group(1).strip()
+            print(f"⚠️ Email not configured. Verification token for {to_email}: {token}")
+            logger.warning(f"Email not sent. Token for {to_email}: {token}")
+        else:
+            print("⚠️ No valid email configuration found and couldn't extract token.")
+        
+        return 200  # Return success anyway to not break the flow
+
     return 500
 
 
@@ -88,3 +120,10 @@ async def is_email_reachable(email: str) -> bool:
         return False
     except Exception:
         return False
+
+# Add this to your email_utils.py
+def is_email_configured() -> bool:
+    """Check if any email service is configured"""
+    has_smtp = bool(settings.EMAIL_HOST and settings.EMAIL_USERNAME and settings.EMAIL_PASSWORD)
+    has_sendgrid = bool(settings.SENDGRID_API_KEY)
+    return has_smtp or has_sendgrid

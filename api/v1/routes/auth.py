@@ -48,17 +48,24 @@ async def signup(user_data: UserCreate, background_tasks: BackgroundTasks, db: A
         </html>
         """
 
-        background_tasks.add_task(
-            send_email_reminder,
-            to_email=user_data.email,
-            subject=subject,
-            content=html_content
-        )
-
-        return {"message": "Verification code sent to your email"}
+        # Only try to send email if configured, but always store the token
+        from api.utils.email_utils import is_email_configured
+        if is_email_configured():
+            background_tasks.add_task(
+                send_email_reminder,
+                to_email=user_data.email,
+                subject=subject,
+                content=html_content
+            )
+            return {"message": "Verification code sent to your email"}
+        else:
+            # For development, return the token directly
+            print(f"Development mode: Verification token for {user_data.email}: {token}")
+            return {"message": f"Verification code: {token} (email not configured)"}
+            
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-
+    
 @auth.post("/verify-email", response_model=MessageResponse)
 async def verify_email(data: TokenVerifyRequest, db: AsyncSession = Depends(get_db)):
     try:
@@ -78,7 +85,7 @@ async def resend_verification_email(payload: ResendVerificationRequest, backgrou
         return {"message": "Email already verified"}
 
     token = str(random.randint(10000, 99999))
-    await user_service.store_verification_token(user.email, token)  # Updated to use store_verification_token
+    await user_service.store_verification_token(user.email, token)
 
     html_content = f"""
     <html>
@@ -91,15 +98,19 @@ async def resend_verification_email(payload: ResendVerificationRequest, backgrou
     </html>
     """
 
-    background_tasks.add_task(
-        send_email_reminder,
-        to_email=user.email,
-        subject="Your Verification Code",
-        content=html_content
-    )
-
-    return {"message": "Verification email resent"}
-
+    from api.utils.email_utils import is_email_configured
+    if is_email_configured():
+        background_tasks.add_task(
+            send_email_reminder,
+            to_email=user.email,
+            subject="Your Verification Code",
+            content=html_content
+        )
+        return {"message": "Verification email resent"}
+    else:
+        print(f"Development mode: Resent verification token for {email}: {token}")
+        return {"message": f"Verification code: {token} (email not configured)"}
+    
 @auth.post("/login", response_model=LoginResponse)
 async def login(response: Response, user_data: LoginRequest, db: AsyncSession = Depends(get_db)):
     stmt = select(User).where(User.email == user_data.email)
@@ -114,18 +125,22 @@ async def login(response: Response, user_data: LoginRequest, db: AsyncSession = 
 
     access_token = create_access_token(data={"sub": str(user.id)})
 
+    # Set cookie with proper settings for cross-origin
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=False,  # Set to True in production
-        samesite="lax",
+        secure=False,  # False for HTTP in development
+        samesite="none",  # Changed to "none" for cross-origin
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
+        domain=None  # Allow all domains
     )
 
+    # Also store in response for frontend to use as fallback
     return {
         "message": "Login successful",
-        "access_token": access_token,
+        "access_token": access_token,  # Still return in response
         "token_type": "bearer",
         "user": {
             "id": str(user.id),
@@ -135,7 +150,8 @@ async def login(response: Response, user_data: LoginRequest, db: AsyncSession = 
             "date_of_birth": user.date_of_birth,
             "gender": user.gender,
             "phone_number": user.phone_number,
-            "is_verified": user.is_verified
+            "is_verified": user.is_verified,
+            "profile_picture": user.profile_picture
         }
     }
 

@@ -1,18 +1,8 @@
 from pydantic import BaseModel, EmailStr, Field, model_validator, field_serializer
-from typing import Optional, Literal
+from typing import Optional, Literal, Union
 from datetime import date
 from enum import Enum
-
-class GenderEnum(str, Enum):
-    MALE = "MALE"
-    FEMALE = "FEMALE"
-    OTHER = "OTHER"
-
-# api/v1/schemas/auth.py
-from pydantic import BaseModel, EmailStr, Field, model_validator, field_serializer
-from typing import Optional, Literal
-from datetime import date
-from enum import Enum
+import uuid
 
 class GenderEnum(str, Enum):
     MALE = "MALE"
@@ -33,14 +23,12 @@ class UserCreate(BaseModel):
     def passwords_match(cls, values):
         password = values.get("password")
         password_verify = values.get("password_verify")
-        print(f"Validating: password={password!r}, type={type(password)}, password_verify={password_verify!r}, type={type(password_verify)}")
         if str(password) != str(password_verify):
             raise ValueError(f"Passwords do not match: {password!r} vs {password_verify!r}")
         return values
-    
-    
+
 class UserResponse(BaseModel):
-    id: int  # Changed from UUID to int
+    id: Union[str, uuid.UUID]  # Accept multiple types including UUID
     email: EmailStr
     is_verified: bool
     first_name: str
@@ -48,13 +36,18 @@ class UserResponse(BaseModel):
     phone_number: Optional[str] = None
     date_of_birth: Optional[date] = None
     gender: Optional[GenderEnum] = None
+    profile_picture: Optional[str] = None
 
-    @field_serializer("date_of_birth", mode="plain")
-    def format_birth_date(cls, dob: Optional[date]) -> Optional[str]:
+    @field_serializer("date_of_birth")
+    def format_birth_date(self, dob: Optional[date], _info) -> Optional[str]:
         return dob.strftime("%d-%m") if dob else None
 
+    @field_serializer("id")  # Add serializer for ID
+    def serialize_id(self, id_value: Union[int, str, uuid.UUID], _info) -> str:
+        return str(id_value)  # Convert UUID to string for JSON serialization
+
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
@@ -65,7 +58,7 @@ class UserUpdate(BaseModel):
     gender: Optional[GenderEnum] = None
 
 class UserInfo(BaseModel):
-    id: str  # Keep as str for JSON compatibility
+    id: str  # Keep as string
     first_name: str
     last_name: str
     email: EmailStr
@@ -73,13 +66,11 @@ class UserInfo(BaseModel):
     date_of_birth: Optional[date] = None
     gender: Optional[GenderEnum] = None
     is_verified: bool
+    profile_picture: Optional[str] = None
 
-    @field_serializer("date_of_birth", mode="plain")
-    def format_birth_date(cls, dob: Optional[date]) -> Optional[str]:
-        if isinstance(dob, date):
-            return dob.strftime("%d-%m")
-        return None
-
+    @field_serializer("date_of_birth")
+    def format_birth_date(self, dob: Optional[date], _info) -> Optional[str]:
+        return dob.strftime("%d-%m") if dob else None
 class LoginResponse(BaseModel):
     message: str
     access_token: str
