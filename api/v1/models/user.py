@@ -30,3 +30,4 @@ class User(BaseModel):
     profile_picture = Column(String, nullable=True)
 
     enrollments = relationship("Enrollment", back_populates="user")
+    payments = relationship("Payment", back_populates="user")

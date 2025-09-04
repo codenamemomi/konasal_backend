@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: str
     
     SENDGRID_API_KEY: str
+
+    PAYPAL_CLIENT_ID: str
+    PAYPAL_CLIENT_SECRET: str
+    PAYPAL_WEBHOOK_ID: Optional[str] = None
     
     model_config = SettingsConfigDict(
         env_file=".env",

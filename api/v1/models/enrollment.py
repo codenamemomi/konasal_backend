@@ -1,4 +1,4 @@
-from sqlalchemy import Column, ForeignKey, Float
+from sqlalchemy import Column, ForeignKey, Float, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import uuid
@@ -8,7 +8,7 @@ class Enrollment(BaseModel):
     __tablename__ = "enrollments"
 
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True)
-    course_id = Column(UUID(as_uuid=True), ForeignKey("courses.id"), primary_key=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=False)
     progress = Column(Float, default=0.0)
 
     user = relationship("User", back_populates="enrollments")
