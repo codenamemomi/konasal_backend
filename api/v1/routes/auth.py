@@ -22,7 +22,6 @@ class MessageResponse(BaseModel):
 
 @auth.post("/signup", response_model=MessageResponse)
 async def signup(user_data: UserCreate, background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
-    print(f"Signup request: {user_data.dict()}")  # Debug
     try:
         validate_password(user_data.password)
         validate_email_format(user_data.email)
@@ -60,7 +59,6 @@ async def signup(user_data: UserCreate, background_tasks: BackgroundTasks, db: A
             return {"message": "Verification code sent to your email"}
         else:
             # For development, return the token directly
-            print(f"Development mode: Verification token for {user_data.email}: {token}")
             return {"message": f"Verification code: {token} (email not configured)"}
             
     except ValueError as e:
@@ -108,7 +106,6 @@ async def resend_verification_email(payload: ResendVerificationRequest, backgrou
         )
         return {"message": "Verification email resent"}
     else:
-        print(f"Development mode: Resent verification token for {email}: {token}")
         return {"message": f"Verification code: {token} (email not configured)"}
     
 @auth.post("/login", response_model=LoginResponse)
@@ -130,11 +127,11 @@ async def login(response: Response, user_data: LoginRequest, db: AsyncSession = 
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=False,  # False for HTTP in development
+        secure=True,  # False for HTTP in development
         samesite="none",  # Changed to "none" for cross-origin
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         path="/",
-        domain=None  # Allow all domains
+        domain="https://www.konasalti.com"  # Allow all domains
     )
 
     # Also store in response for frontend to use as fallback

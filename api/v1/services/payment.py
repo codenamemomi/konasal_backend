@@ -76,8 +76,8 @@ class PayPalService:
                     "custom_id": f"user_{user_id}_course_{course_id}" if user_id and course_id else None
                 }],
                 "application_context": {
-                    "return_url": "http://127.0.0.1:5500/checkout/success", #"https://www.konasalti.com/checkout/success",
-                    "cancel_url": "http://127.0.0.1:5500/checkout/cancel", #"https://www.konasalti.com/checkout/cancel",
+                    "return_url": "https://www.konasalti.com/checkout/success",
+                    "cancel_url": "https://www.konasalti.com/checkout/cancel",
                     "brand_name": "Konasal Training Institute",
                     "user_action": "PAY_NOW",
                     "shipping_preference": "NO_SHIPPING"

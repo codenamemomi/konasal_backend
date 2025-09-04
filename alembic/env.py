@@ -12,7 +12,6 @@ from dotenv import load_dotenv
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
 
-print("POSTGRES_SERVER:", os.getenv("POSTGRES_SERVER"))
 
 target_metadata = Base.metadata
 

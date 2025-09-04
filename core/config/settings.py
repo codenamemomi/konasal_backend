@@ -3,7 +3,7 @@ from pydantic import AnyHttpUrl, field_validator
 from typing import List, Optional, Union
 
 class Settings(BaseSettings):
-    ENVIRONMENT: str = "development"
+    ENVIRONMENT: str = "production"
     DEBUG: bool = True
 
     PROJECT_NAME: str = "Konosal API"
@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
-    BACKEND_CORS_ORIGINS: List[str] = ["http://127.0.0.1:5500"]  # Updated
+    BACKEND_CORS_ORIGINS: List[str] = ["http://127.0.0.1:5500", "https://konasalti.com"]  # Updated
 
     EMAIL_HOST: Optional[str] = None
     EMAIL_PORT: Optional[int] = None
@@ -30,7 +30,6 @@ class Settings(BaseSettings):
     EMAIL_USE_SSL: bool = True  # New setting to specify SSL usage
     
     
-    # Remove or keep these for backward compatibility
     EMAILS_FROM_EMAIL: Optional[str] = None  # Keep for compatibility
     MAIL_FROM: Optional[str] = None  # Keep for compatibility
     MAIL_FROM_NAME: Optional[str] = None

@@ -51,11 +51,9 @@ def send_email_reminder(to_email: str, subject: str, content: str):
                 server.login(settings.EMAIL_USERNAME, settings.EMAIL_PASSWORD)
                 server.sendmail(from_email, [to_email], message.as_string())
 
-            print("✅ Email sent successfully via Gmail SMTP (SSL).")
             email_sent = True
             return 200
         except Exception as e:
-            print("❌ Failed to send email via Gmail SMTP.")
             logger.warning(f"SMTP email failed: {e}")
             traceback.print_exc()
 
@@ -72,15 +70,12 @@ def send_email_reminder(to_email: str, subject: str, content: str):
             response = sg.send(message)
 
             if 200 <= response.status_code < 300:
-                print("✅ Email sent successfully via SendGrid.")
                 email_sent = True
             else:
-                print(f"⚠️ SendGrid returned status code: {response.status_code}")
                 logger.warning(f"SendGrid failed: {response.status_code} - {response.body}")
 
             return response.status_code
         except Exception as e:
-            print("❌ Failed to send email via SendGrid.")
             logger.warning(f"SendGrid email failed: {e}")
             traceback.print_exc()
 
@@ -91,7 +86,6 @@ def send_email_reminder(to_email: str, subject: str, content: str):
         token_match = re.search(r'<h3[^>]*>(.*?)</h3>', content)
         if token_match:
             token = token_match.group(1).strip()
-            print(f"⚠️ Email not configured. Verification token for {to_email}: {token}")
             logger.warning(f"Email not sent. Token for {to_email}: {token}")
         else:
             print("⚠️ No valid email configuration found and couldn't extract token.")
